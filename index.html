@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Pay10 Lingo — Translation Memory</title>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --orange:#F97316;--ol:#FFF7ED;--om:#FED7AA;--oh:#EA6C0A;
+  --bg:#F4F5F7;--white:#fff;--text:#111827;--t2:#4B5563;--t3:#9CA3AF;
+  --border:#E5E7EB;--b2:#D1D5DB;
+  --green:#10B981;--gl:#ECFDF5;--gm:#6EE7B7;
+  --blue:#3B82F6;--bl:#EFF6FF;--bm:#BFDBFE;
+  --red:#EF4444;--rl:#FEF2F2;
+  --sidebar:240px;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+html,body,#root{height:100%;font-family:"Plus Jakarta Sans",-apple-system,sans-serif;font-size:13px;color:var(--text);background:var(--bg);}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-thumb{background:var(--b2);border-radius:99px;}
+button{font-family:inherit;cursor:pointer;}
+input,select,textarea{font-family:inherit;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo}=React;
+
+const LANGS={ar:{flag:"🌍",name:"Arabic",native:"العربية",rtl:true,dialects:[{code:"msa",flag:"🌍",name:"Modern Standard"},{code:"eg",flag:"🇪🇬",name:"Egyptian"},{code:"ma",flag:"🇲🇦",name:"Moroccan Darija"},{code:"gulf",flag:"🇸🇦",name:"Gulf / Khaleeji"},{code:"levantine",flag:"🇱🇧",name:"Levantine"},{code:"iraqi",flag:"🇮🇶",name:"Iraqi"},{code:"tn",flag:"🇹🇳",name:"Tunisian"},{code:"dz",flag:"🇩🇿",name:"Algerian"}]},en:{flag:"🇺🇸",name:"English",rtl:false,dialects:[{code:"us",flag:"🇺🇸",name:"American"},{code:"uk",flag:"🇬🇧",name:"British"},{code:"au",flag:"🇦🇺",name:"Australian"},{code:"ca",flag:"🇨🇦",name:"Canadian"},{code:"neutral",flag:"🌐",name:"International"}]},es:{flag:"🇪🇸",name:"Spanish",native:"Español",rtl:false,dialects:[{code:"es",flag:"🇪🇸",name:"Spain"},{code:"mx",flag:"🇲🇽",name:"Mexican"},{code:"ar",flag:"🇦🇷",name:"Argentinian"},{code:"latam",flag:"🌎",name:"Latin American"}]},fr:{flag:"🇫🇷",name:"French",native:"Français",rtl:false,dialects:[{code:"fr",flag:"🇫🇷",name:"France"},{code:"ca",flag:"🇨🇦",name:"Québécois"}]},pt:{flag:"🇧🇷",name:"Portuguese",rtl:false,dialects:[{code:"br",flag:"🇧🇷",name:"Brazilian"},{code:"pt",flag:"🇵🇹",name:"European"}]},zh:{flag:"🇨🇳",name:"Chinese",native:"中文",rtl:false,dialects:[{code:"cn",flag:"🇨🇳",name:"Simplified"},{code:"tw",flag:"🇹🇼",name:"Traditional"}]},de:{flag:"🇩🇪",name:"German",native:"Deutsch",rtl:false,dialects:[{code:"de",flag:"🇩🇪",name:"Standard"},{code:"at",flag:"🇦🇹",name:"Austrian"}]},ja:{flag:"🇯🇵",name:"Japanese",native:"日本語",rtl:false,dialects:[{code:"ja",flag:"🇯🇵",name:"Standard"}]},ko:{flag:"🇰🇷",name:"Korean",native:"한국어",rtl:false,dialects:[{code:"ko",flag:"🇰🇷",name:"Standard"}]},he:{flag:"🇮🇱",name:"Hebrew",native:"עברית",rtl:true,dialects:[{code:"he",flag:"🇮🇱",name:"Modern Hebrew"}]},fa:{flag:"🇮🇷",name:"Persian",native:"فارسی",rtl:true,dialects:[{code:"ir",flag:"🇮🇷",name:"Farsi"}]},ur:{flag:"🇵🇰",name:"Urdu",native:"اردو",rtl:true,dialects:[{code:"ur",flag:"🇵🇰",name:"Standard"}]}};
+
+const SAMPLE={ar_eg:{"Welcome":"أهلاً وسهلاً","Settings":"الإعدادات","Cancel":"إلغاء","Save":"حفظ","Edit":"تعديل","Delete":"حذف","Search":"بحث","Done":"تم","Continue":"متابعة","Sign in":"تسجيل الدخول","Sign out":"تسجيل الخروج","Home":"الرئيسية","Profile":"الملف الشخصي","Notifications":"الإشعارات","Loading...":"جاري التحميل...","Error":"خطأ","Success":"تم بنجاح","Next":"التالي","Back":"رجوع"},ar_gulf:{"Welcome":"هلا وغلا","Settings":"الإعدادات","Cancel":"كنسل","Save":"احفظ","Done":"خلاص","Search":"دور"}};
+
+function getKey(lang,dial){return lang+"_"+dial;}
+
+function getLangInfo(langCode,dialCode){
+  const l=LANGS[langCode];if(!l)return{name:"Unknown",flag:"🌐",dialName:"",rtl:false};
+  const d=l.dialects.find(x=>x.code===dialCode)||l.dialects[0];
+  return{name:l.name,native:l.native,flag:l.flag,dialName:d?d.name:"",dialFlag:d?d.flag:"",rtl:l.rtl};
+}
+
+
+// ──── GitHub API Sync ──────────────────────────────────────
+const GH_BASE = "https://api.github.com";
+const GH_FILE = "pay10-memory.json";
+
+async function ghGetFile(creds) {
+  const {token, owner, repo} = creds;
+  const r = await fetch(`${GH_BASE}/repos/${owner}/${repo}/contents/${GH_FILE}`, {
+    headers: {"Authorization":"token "+token, "Accept":"application/vnd.github.v3+json"}
+  });
+  if (r.status === 404) return {content: null, sha: null};
+  if (!r.ok) {
+    let msg = "HTTP "+r.status;
+    try{const e=await r.json(); msg+=": "+(e.message||"");}catch(x){}
+    throw new Error(msg);
+  }
+  const d = await r.json();
+  const content = JSON.parse(atob(d.content.replace(/\n/g,"")));
+  return {content, sha: d.sha};
+}
+
+async function ghPush(creds, data) {
+  const {token, owner, repo} = creds;
+  // Get current SHA first (needed for updates)
+  const {sha} = await ghGetFile(creds);
+  const body = {
+    message: "Update Pay10 Lingo memory",
+    content: btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2)))),
+  };
+  if (sha) body.sha = sha;
+  const r = await fetch(`${GH_BASE}/repos/${owner}/${repo}/contents/${GH_FILE}`, {
+    method: "PUT",
+    headers: {"Authorization":"token "+token, "Content-Type":"application/json", "Accept":"application/vnd.github.v3+json"},
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) {
+    let msg = "HTTP "+r.status;
+    try{const e=await r.json(); msg+=": "+(e.message||"");}catch(x){}
+    throw new Error(msg);
+  }
+  return r.json();
+}
+
+async function ghPull(creds) {
+  const {content} = await ghGetFile(creds);
+  return content || {};
+}
+
+function mergeMemory(local, remote) {
+  const m = {...local};
+  Object.entries(remote||{}).forEach(([k,v]) => { m[k] = {...(m[k]||{}),...v}; });
+  return m;
+}
+
+
+function App(){
+  const [memory,setMemory]=useState({});
+  const [selKey,setSelKey]=useState(null);
+  const [search,setSearch]=useState("");
+  const [editId,setEditId]=useState(null);
+  const [toast,setToast]=useState(null);
+  const [addModal,setAddModal]=useState(false);
+  const [importModal,setImportModal]=useState(false);
+  const [addLangModal,setAddLangModal]=useState(false);
+  const [newLang,setNewLang]=useState("ar");
+  const [newDial,setNewDial]=useState("eg");
+  const [loaded,setLoaded]=useState(false);
+  const [syncCreds,setSyncCreds]=useState({apiKey:'',binId:''});
+  const [syncStatus,setSyncStatus]=useState('offline'); // offline|syncing|synced|error
+  const [lastSync,setLastSync]=useState(null);
+  const [showSyncPanel,setShowSyncPanel]=useState(false);
+
+  useEffect(()=>{
+    try{
+      const saved=localStorage.getItem("pay10_memory");
+      if(saved){const m=JSON.parse(saved);setMemory(m);const keys=Object.keys(m);if(keys.length)setSelKey(keys[0]);}
+      else{setMemory(SAMPLE);localStorage.setItem("pay10_memory",JSON.stringify(SAMPLE));setSelKey("ar_eg");}
+    }catch(e){setMemory(SAMPLE);setSelKey("ar_eg");}
+    // Load sync creds
+    try{const sc=localStorage.getItem("pay10_sync_creds");if(sc)setSyncCreds(JSON.parse(sc));}catch(e){}
+    setLoaded(true);
+  },[]);
+
+  useEffect(()=>{if(loaded)localStorage.setItem("pay10_memory",JSON.stringify(memory));},[memory,loaded]);
+  // Auto-pull when creds are set and page loads
+  useEffect(()=>{
+    if(!loaded||!syncCreds.token||!syncCreds.owner||!syncCreds.repo)return;
+    handlePull(syncCreds);
+  },[loaded,syncCreds.repo]);
+  // Save sync creds to localStorage
+  useEffect(()=>{
+    if(syncCreds.apiKey||syncCreds.binId)localStorage.setItem("pay10_sync_creds",JSON.stringify(syncCreds));
+  },[syncCreds]);
+
+  function showToast(msg,kind="success"){setToast({msg,kind});setTimeout(()=>setToast(null),2500);}
+
+  function saveEntry(key,source,translation,skipPush){
+    setMemory(m=>{const n={...m,[key]:{...m[key],[source]:translation}};if(!skipPush)setTimeout(()=>handlePush(n),300);return n;});
+  }
+  function deleteEntry(key,source){
+    setMemory(m=>{const pair={...m[key]};delete pair[source];return{...m,[key]:pair};});
+    showToast("Entry deleted");
+  }
+  function clearPair(key){
+    setMemory(m=>({...m,[key]:{}}));
+    showToast("Memory cleared for this pair");
+  }
+  function addPair(lang,dial){
+    const k=getKey(lang,dial);
+    setMemory(m=>({...m,[k]:m[k]||{}}));
+    setSelKey(k);
+    setAddLangModal(false);
+    showToast("Language pair added");
+  }
+  function deletePair(key){
+    if(!confirm("Remove this language pair and all its entries?"))return;
+    setMemory(m=>{const n={...m};delete n[key];return n;});
+    const keys=Object.keys(memory).filter(k=>k!==key);
+    setSelKey(keys[0]||null);
+    showToast("Language pair removed");
+  }
+
+
+  async function handlePull(creds){
+    const c=creds||syncCreds;
+    if(!c.token||!c.owner||!c.repo)return;
+    setSyncStatus("syncing");
+    try{
+      const remote=await ghPull(c);
+      setMemory(m=>{const merged=mergeMemory(m,remote);return merged;});
+      setSyncStatus("synced");setLastSync(new Date());
+      showToast("Pulled latest from cloud","success");
+      setTimeout(()=>setSyncStatus("offline"),4000);
+    }catch(e){setSyncStatus("error");showToast("Pull failed: "+e.message,"error");}
+  }
+
+  async function handlePush(currentMemory){
+    if(!syncCreds.token||!syncCreds.owner||!syncCreds.repo)return;
+    setSyncStatus("syncing");
+    try{
+      await ghPush(syncCreds, currentMemory||memory);
+      setSyncStatus("synced");setLastSync(new Date());
+      setTimeout(()=>setSyncStatus("offline"),4000);
+    }catch(e){setSyncStatus("error");showToast("Push failed: "+e.message,"error");}
+  }
+
+  async function handleTestToken(){
+    const tokenInput = document.querySelector('input[data-gh="token"]');
+    const ownerInput = document.querySelector('input[data-gh="owner"]');
+    const repoInput  = document.querySelector('input[data-gh="repo"]');
+    const liveToken = tokenInput ? tokenInput.value.trim() : syncCreds.token;
+    const liveOwner = ownerInput ? ownerInput.value.trim() : syncCreds.owner;
+    const liveRepo  = repoInput  ? repoInput.value.trim()  : syncCreds.repo;
+    if(!liveToken||!liveOwner||!liveRepo){showToast("Fill in all fields first","error");return;}
+    showToast("Testing connection…");
+    try{
+      const r = await fetch(GH_BASE+"/repos/"+liveOwner+"/"+liveRepo, {
+        headers:{"Authorization":"token "+liveToken,"Accept":"application/vnd.github.v3+json"}
+      });
+      if(!r.ok){const e=await r.json();throw new Error(e.message||"HTTP "+r.status);}
+      const newCreds={token:liveToken,owner:liveOwner,repo:liveRepo};
+      setSyncCreds(newCreds);
+      localStorage.setItem("pay10_sync_creds",JSON.stringify(newCreds));
+      showToast("Connected to "+liveOwner+"/"+liveRepo+" ✓","success");
+    }catch(e){showToast("Error: "+e.message,"error");}
+  }
+
+  function exportJSON(){
+    const blob=new Blob([JSON.stringify(memory,null,2)],{type:"application/json"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);
+    a.download="pay10-memory.json";a.click();
+    showToast("Exported successfully");
+  }
+  function importJSON(text){
+    try{
+      const parsed=JSON.parse(text);
+      setMemory(m=>{const merged={...m};Object.entries(parsed).forEach(([k,v])=>{merged[k]={...merged[k],...v};});return merged;});
+      showToast("Imported & merged successfully");
+      setImportModal(false);
+    }catch(e){showToast("Invalid JSON file","error");}
+  }
+
+  const pairs=Object.keys(memory);
+  const totalEntries=Object.values(memory).reduce((s,v)=>s+Object.keys(v).length,0);
+
+  const currentEntries=useMemo(()=>{
+    if(!selKey||!memory[selKey])return[];
+    const q=search.toLowerCase().trim();
+    return Object.entries(memory[selKey]).filter(([src,trans])=>!q||src.toLowerCase().includes(q)||trans.toLowerCase().includes(q));
+  },[memory,selKey,search]);
+
+  const [parts]=selKey?(()=>{const p=selKey.split("_");return[[p[0],p.slice(1).join("_")]];})():[[null,null]];
+  const langCode=parts?parts[0]:null;
+  const dialCode=parts?parts[1]:null;
+  const info=langCode&&dialCode?getLangInfo(langCode,dialCode):{name:"",flag:"",dialName:"",dialFlag:"",rtl:false};
+
+  if(!loaded)return null;
+
+  return(
+    <div style={{display:"flex",height:"100vh",overflow:"hidden"}}>
+      {/* SIDEBAR */}
+      <aside style={{width:"var(--sidebar)",background:"var(--white)",borderRight:"1px solid var(--border)",display:"flex",flexDirection:"column",flexShrink:0}}>
+        {/* Logo */}
+        <div style={{padding:"16px 14px 12px",borderBottom:"1px solid var(--border)"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <div style={{width:30,height:30,borderRadius:8,background:"linear-gradient(135deg,#F97316,#FB923C)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8.5C3 5.46 5.46 3 8.5 3S14 5.46 14 8.5 11.54 14 8.5 14" stroke="white" strokeWidth="1.8" strokeLinecap="round"/><path d="M5.5 6L8.5 3L11.5 6" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/><circle cx="4" cy="12" r="1.5" fill="white"/></svg>
+            </div>
+            <div>
+              <div style={{fontWeight:700,fontSize:13,letterSpacing:"-.3px"}}>Pay10 Lingo</div>
+              <div style={{fontSize:10,color:"var(--t3)"}}>Translation Memory</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div style={{padding:"12px 14px",borderBottom:"1px solid var(--border)",display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          <div style={{background:"var(--ol)",borderRadius:8,padding:"8px 10px"}}>
+            <div style={{fontSize:18,fontWeight:700,color:"var(--oh)"}}>{totalEntries}</div>
+            <div style={{fontSize:10,color:"var(--oh)",opacity:.8}}>Total entries</div>
+          </div>
+          <div style={{background:"var(--bg)",borderRadius:8,padding:"8px 10px"}}>
+            <div style={{fontSize:18,fontWeight:700,color:"var(--t2)"}}>{pairs.length}</div>
+            <div style={{fontSize:10,color:"var(--t3)"}}>Lang pairs</div>
+          </div>
+        </div>
+
+        {/* Lang pairs */}
+        <div style={{flex:1,overflowY:"auto",padding:"8px 8px"}}>
+          <div style={{fontSize:10,fontWeight:600,color:"var(--t3)",textTransform:"uppercase",letterSpacing:".5px",padding:"4px 6px 8px"}}>Language Pairs</div>
+          {pairs.map(k=>{
+            const[lc,...rest]=k.split("_");const dc=rest.join("_");
+            const inf=getLangInfo(lc,dc);
+            const cnt=Object.keys(memory[k]||{}).length;
+            return(
+              <div key={k} onClick={()=>setSelKey(k)}
+                style={{display:"flex",alignItems:"center",gap:8,padding:"8px 8px",borderRadius:8,cursor:"pointer",background:selKey===k?"var(--ol)":"transparent",marginBottom:2,transition:"background .12s"}}>
+                <span style={{fontSize:18}}>{inf.dialFlag||inf.flag}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12,fontWeight:600,color:selKey===k?"var(--oh)":"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{inf.dialName}</div>
+                  <div style={{fontSize:10,color:selKey===k?"var(--orange)":"var(--t3)"}}>{inf.name}{inf.native?` · ${inf.native}`:""}</div>
+                </div>
+                <span style={{fontSize:10,fontWeight:600,background:selKey===k?"var(--om)":"var(--bg)",color:selKey===k?"var(--oh)":"var(--t3)",padding:"1px 6px",borderRadius:99,flexShrink:0}}>{cnt}</span>
+              </div>
+            );
+          })}
+          <button onClick={()=>setAddLangModal(true)} style={{width:"100%",padding:"8px",border:"1.5px dashed var(--b2)",borderRadius:8,background:"transparent",color:"var(--t3)",fontSize:11,fontWeight:500,marginTop:4,display:"flex",alignItems:"center",justifyContent:"center",gap:5,cursor:"pointer"}}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add language pair
+          </button>
+        </div>
+
+        {/* Import/Export */}
+        <div style={{padding:"10px 8px",borderTop:"1px solid var(--border)",display:"flex",flexDirection:"column",gap:6}}>
+          <button onClick={exportJSON} style={{padding:"8px 12px",borderRadius:8,border:"1.5px solid var(--border)",background:"var(--white)",color:"var(--t2)",fontSize:11,fontWeight:500,display:"flex",alignItems:"center",gap:6}}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export for plugin
+          </button>
+          <button onClick={()=>setImportModal(true)} style={{padding:"8px 12px",borderRadius:8,border:"1.5px solid var(--orange)",background:"var(--ol)",color:"var(--oh)",fontSize:11,fontWeight:500,display:"flex",alignItems:"center",gap:6}}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Import from plugin
+          </button>
+          <button onClick={()=>setShowSyncPanel(p=>!p)} style={{padding:"8px 12px",borderRadius:8,border:"1.5px solid var(--border)",background:syncStatus==="error"?"var(--rl)":syncStatus==="synced"?"var(--gl)":"var(--white)",color:syncStatus==="error"?"var(--red)":syncStatus==="synced"?"var(--green)":"var(--t2)",fontSize:11,fontWeight:500,display:"flex",alignItems:"center",gap:6}}>
+            {syncStatus==="syncing"?<span style={{width:10,height:10,border:"1.5px solid currentColor",borderTopColor:"transparent",borderRadius:"50%",animation:"spin .7s linear infinite",display:"inline-block"}}/>:syncStatus==="synced"?"✓":syncStatus==="error"?"⚠":"☁"}
+            {syncStatus==="syncing"?"Syncing…":syncStatus==="synced"?"Synced":syncStatus==="error"?"Sync error":"Cloud sync"}
+          </button>
+        </div>
+      </aside>
+
+      {/* MAIN */}
+      <main style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        {selKey?(
+          <>
+            {/* Top bar */}
+            <div style={{background:"var(--white)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+              <div style={{fontSize:20}}>{info.dialFlag||info.flag}</div>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:700,fontSize:15,letterSpacing:"-.3px"}}>{info.dialName} <span style={{fontWeight:400,color:"var(--t3)",fontSize:13}}>· {info.name}{info.native?` (${info.native})`:""}</span></div>
+                <div style={{fontSize:11,color:"var(--t3)",marginTop:1}}>{currentEntries.length} {search?"matches":"entries"} · {info.rtl?"RTL":"LTR"}</div>
+              </div>
+              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                <div style={{position:"relative"}}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" strokeWidth="2.5" strokeLinecap="round" style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",pointerEvents:"none"}}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search…" style={{padding:"7px 10px 7px 30px",border:"1.5px solid var(--border)",borderRadius:8,fontSize:12,outline:"none",width:200,background:"var(--bg)"}}/>
+                </div>
+                <button onClick={()=>setAddModal(true)} style={{padding:"7px 14px",borderRadius:8,background:"var(--orange)",border:"none",color:"white",fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:5}}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  Add entry
+                </button>
+                <button onClick={()=>deletePair(selKey)} title="Remove language pair" style={{width:30,height:30,borderRadius:8,border:"1.5px solid var(--border)",background:"var(--white)",color:"var(--t3)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Table header */}
+            {currentEntries.length>0&&(
+              <div style={{background:"var(--bg)",borderBottom:"1px solid var(--border)",padding:"8px 20px",display:"grid",gridTemplateColumns:"1fr 1fr 100px",gap:12,fontSize:10,fontWeight:600,color:"var(--t3)",textTransform:"uppercase",letterSpacing:".5px",flexShrink:0}}>
+                <div>Source text (English)</div>
+                <div>Translation</div>
+                <div></div>
+              </div>
+            )}
+
+            {/* Entries */}
+            <div style={{flex:1,overflowY:"auto",padding:"12px 20px"}}>
+              {currentEntries.length===0?(
+                <div style={{textAlign:"center",padding:"60px 20px",color:"var(--t3)"}}>
+                  <div style={{fontSize:40,marginBottom:12}}>{search?"🔍":"📭"}</div>
+                  <div style={{fontSize:14,fontWeight:600,color:"var(--t2)",marginBottom:6}}>{search?"No matches":"No entries yet"}</div>
+                  <div style={{fontSize:12}}>{search?"Try a different search term":"Add your first translation pair or import from the plugin"}</div>
+                  {!search&&<button onClick={()=>setAddModal(true)} style={{marginTop:16,padding:"9px 18px",borderRadius:8,background:"var(--orange)",border:"none",color:"white",fontSize:12,fontWeight:600,cursor:"pointer"}}>Add first entry</button>}
+                </div>
+              ):(
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  {currentEntries.map(([src,trans])=>(
+                    <EntryRow key={src} src={src} trans={trans} isRTL={info.rtl}
+                      isEditing={editId===src}
+                      onEdit={()=>setEditId(src)}
+                      onSave={(newTrans)=>{saveEntry(selKey,src,newTrans);setEditId(null);showToast("Saved");}}
+                      onCancel={()=>setEditId(null)}
+                      onDelete={()=>deleteEntry(selKey,src)}/>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            {currentEntries.length>0&&(
+              <div style={{padding:"10px 20px",borderTop:"1px solid var(--border)",background:"var(--white)",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
+                <span style={{fontSize:11,color:"var(--t3)"}}>{Object.keys(memory[selKey]||{}).length} total entries for {info.dialName}</span>
+                <button onClick={()=>{if(confirm("Clear all entries for this language pair?"))clearPair(selKey);}} style={{fontSize:11,color:"var(--red)",background:"transparent",border:"none",cursor:"pointer",padding:"4px 8px",borderRadius:6}}>Clear all entries</button>
+              </div>
+            )}
+          </>
+        ):(
+          <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:"var(--t3)"}}>
+            <div style={{fontSize:40}}>📚</div>
+            <div style={{fontSize:14,fontWeight:600,color:"var(--t2)"}}>No language pairs yet</div>
+            <div style={{fontSize:12}}>Add a language pair to start managing your translation memory</div>
+            <button onClick={()=>setAddLangModal(true)} style={{marginTop:8,padding:"10px 20px",borderRadius:8,background:"var(--orange)",border:"none",color:"white",fontSize:12,fontWeight:600,cursor:"pointer"}}>Add language pair</button>
+          </div>
+        )}
+      </main>
+
+      {/* MODALS */}
+
+      {showSyncPanel&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.35)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100}} onClick={e=>{if(e.target===e.currentTarget)setShowSyncPanel(false);}}>
+          <div style={{background:"var(--white)",borderRadius:14,padding:"22px",width:420,maxWidth:"90vw",boxShadow:"0 20px 60px rgba(0,0,0,.15)"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18}}>
+              <div>
+                <div style={{fontSize:14,fontWeight:700}}>☁ Cloud Sync</div>
+                <div style={{fontSize:11,color:"var(--t3)",marginTop:2}}>Sync with Figma plugin via JSONBin.io</div>
+              </div>
+              <button onClick={()=>setShowSyncPanel(false)} style={{width:28,height:28,borderRadius:7,border:"1.5px solid var(--border)",background:"var(--white)",color:"var(--t3)",cursor:"pointer",fontSize:16}}>×</button>
+            </div>
+            
+            {/* Status */}
+            <div style={{background:syncStatus==="error"?"var(--rl)":syncStatus==="synced"?"var(--gl)":"var(--bg)",borderRadius:10,padding:"10px 14px",marginBottom:16,display:"flex",alignItems:"center",gap:8}}>
+              <div style={{fontSize:20}}>{syncStatus==="syncing"?"⏳":syncStatus==="synced"?"✅":syncStatus==="error"?"❌":"⚪"}</div>
+              <div>
+                <div style={{fontSize:12,fontWeight:600,color:syncStatus==="error"?"var(--red)":syncStatus==="synced"?"var(--green)":"var(--t2)"}}>{syncStatus==="syncing"?"Syncing…":syncStatus==="synced"?"In sync":syncStatus==="error"?"Sync failed":"Not configured"}</div>
+                {lastSync&&<div style={{fontSize:10,color:"var(--t3)"}}>Last sync: {lastSync.toLocaleTimeString()}</div>}
+              </div>
+              {syncCreds.token&&syncCreds.owner&&syncCreds.repo&&<button onClick={()=>handlePull()} style={{marginLeft:"auto",padding:"6px 12px",borderRadius:7,border:"1.5px solid var(--border)",background:"var(--white)",fontSize:11,fontWeight:500,cursor:"pointer",color:"var(--t2)"}}>↓ Pull now</button>}
+            </div>
+
+            <div style={{marginBottom:10}}>
+              <label style={{fontSize:10.5,fontWeight:600,color:"var(--t2)",display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:".4px"}}>GitHub Personal Access Token</label>
+              <input data-gh="token" type="password" defaultValue={syncCreds.token||""} placeholder="ghp_xxxxxxxxxxxx" style={{width:"100%",padding:"9px 11px",border:"1.5px solid var(--border)",borderRadius:8,fontSize:12,outline:"none"}}/>
+            </div>
+            <div style={{display:"flex",gap:8,marginBottom:10}}>
+              <div style={{flex:1}}>
+                <label style={{fontSize:10.5,fontWeight:600,color:"var(--t2)",display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:".4px"}}>GitHub Username</label>
+                <input data-gh="owner" type="text" defaultValue={syncCreds.owner||""} placeholder="ahmedyassen3030-sudo" style={{width:"100%",padding:"9px 11px",border:"1.5px solid var(--border)",borderRadius:8,fontSize:12,outline:"none"}}/>
+              </div>
+              <div style={{flex:1}}>
+                <label style={{fontSize:10.5,fontWeight:600,color:"var(--t2)",display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:".4px"}}>Repo Name</label>
+                <input data-gh="repo" type="text" defaultValue={syncCreds.repo||""} placeholder="pay10-lingo" style={{width:"100%",padding:"9px 11px",border:"1.5px solid var(--border)",borderRadius:8,fontSize:12,outline:"none"}}/>
+              </div>
+            </div>
+            <button onClick={handleTestToken} style={{width:"100%",padding:"9px",borderRadius:8,border:"1.5px solid var(--orange)",background:"var(--ol)",color:"var(--oh)",fontSize:12,fontWeight:600,cursor:"pointer",marginBottom:14}}>
+              🔗 Test &amp; Save connection
+            </button>
+            
+            <div style={{background:"var(--bl)",border:"1px solid var(--bm)",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:11,color:"#1D4ED8",lineHeight:1.7}}>
+              <strong>How to get a GitHub Token:</strong><br/>
+              1. GitHub → Settings → Developer settings<br/>
+              2. Personal access tokens → Tokens (classic) → Generate new<br/>
+              3. Tick <strong>repo</strong> scope → Generate<br/>
+              4. Paste the token above + your username + repo name<br/>
+              5. Click "Test &amp; Save" — done! ✓
+            </div>
+            
+            <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+              <button onClick={()=>setShowSyncPanel(false)} style={{padding:"8px 16px",borderRadius:8,border:"1.5px solid var(--border)",background:"transparent",fontSize:12,fontWeight:500,cursor:"pointer",color:"var(--t2)"}}>Close</button>
+              {syncCreds.token&&syncCreds.owner&&syncCreds.repo&&<button onClick={()=>handlePush()} style={{padding:"8px 16px",borderRadius:8,border:"none",background:"var(--orange)",color:"white",fontSize:12,fontWeight:600,cursor:"pointer"}}>↑ Push to cloud</button>}
+            </div>
+          </div>
+        </div>
+      )}
+      {addModal&&<AddEntryModal isRTL={info.rtl} onAdd={(src,trans)=>{saveEntry(selKey,src,trans);setAddModal(false);showToast("Entry added");}} onClose={()=>setAddModal(false)}/>}
+      {importModal&&<ImportModal onImport={importJSON} onClose={()=>setImportModal(false)}/>}
+      {addLangModal&&<AddLangModal newLang={newLang} setNewLang={setNewLang} newDial={newDial} setNewDial={setNewDial} onAdd={addPair} onClose={()=>setAddLangModal(false)}/>}
+
+      {/* TOAST */}
+      {toast&&<Toast msg={toast.msg} kind={toast.kind}/>}
+    </div>
+  );
+}
+
+function EntryRow({src,trans,isRTL,isEditing,onEdit,onSave,onCancel,onDelete}){
+  const [val,setVal]=useState(trans);
+  useEffect(()=>setVal(trans),[trans,isEditing]);
+  return(
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 100px",gap:12,padding:"10px 14px",background:"var(--white)",border:"1.5px solid var(--border)",borderRadius:10,alignItems:"center",transition:"border-color .15s"}}>
+      <div style={{fontSize:12,color:"var(--t2)",wordBreak:"break-word",lineHeight:1.5}}>{src}</div>
+      {isEditing?(
+        <input value={val} onChange={e=>setVal(e.target.value)} autoFocus
+          style={{padding:"6px 9px",border:"1.5px solid var(--orange)",borderRadius:7,fontSize:12,outline:"none",direction:isRTL?"rtl":"ltr",textAlign:isRTL?"right":"left",background:"var(--ol)"}}
+          onKeyDown={e=>{if(e.key==="Enter")onSave(val);if(e.key==="Escape")onCancel();}}/>
+      ):(
+        <div style={{fontSize:12,color:"var(--text)",fontWeight:500,wordBreak:"break-word",direction:isRTL?"rtl":"ltr",textAlign:isRTL?"right":"left"}}>{trans}</div>
+      )}
+      <div style={{display:"flex",gap:5,justifyContent:"flex-end"}}>
+        {isEditing?(
+          <>
+            <button onClick={()=>onSave(val)} style={{padding:"5px 10px",borderRadius:6,background:"var(--orange)",border:"none",color:"white",fontSize:11,fontWeight:600,cursor:"pointer"}}>Save</button>
+            <button onClick={onCancel} style={{padding:"5px 8px",borderRadius:6,background:"transparent",border:"1.5px solid var(--border)",color:"var(--t2)",fontSize:11,cursor:"pointer"}}>×</button>
+          </>
+        ):(
+          <>
+            <button onClick={onEdit} style={{width:28,height:28,borderRadius:7,border:"1.5px solid var(--border)",background:"var(--white)",color:"var(--t3)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}} title="Edit">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+            <button onClick={onDelete} style={{width:28,height:28,borderRadius:7,border:"1.5px solid var(--border)",background:"var(--white)",color:"var(--t3)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}} title="Delete">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AddEntryModal({isRTL,onAdd,onClose}){
+  const [src,setSrc]=useState("");const [trans,setTrans]=useState("");
+  return(
+    <Modal title="Add translation entry" onClose={onClose}>
+      <div style={{marginBottom:12}}>
+        <label style={{fontSize:11,fontWeight:600,color:"var(--t2)",display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:".4px"}}>Source text (English)</label>
+        <input value={src} onChange={e=>setSrc(e.target.value)} placeholder="e.g. Cancel" autoFocus style={{width:"100%",padding:"9px 11px",border:"1.5px solid var(--border)",borderRadius:8,fontSize:12,outline:"none"}}/>
+      </div>
+      <div style={{marginBottom:18}}>
+        <label style={{fontSize:11,fontWeight:600,color:"var(--t2)",display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:".4px"}}>Translation</label>
+        <input value={trans} onChange={e=>setTrans(e.target.value)} placeholder="Translated text…" style={{width:"100%",padding:"9px 11px",border:"1.5px solid var(--border)",borderRadius:8,fontSize:12,outline:"none",direction:isRTL?"rtl":"ltr",textAlign:isRTL?"right":"left"}}/>
+      </div>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+        <button onClick={onClose} style={{padding:"8px 16px",borderRadius:8,border:"1.5px solid var(--border)",background:"transparent",fontSize:12,fontWeight:500,cursor:"pointer",color:"var(--t2)"}}>Cancel</button>
+        <button onClick={()=>{if(src.trim()&&trans.trim())onAdd(src.trim(),trans.trim());}} disabled={!src.trim()||!trans.trim()} style={{padding:"8px 16px",borderRadius:8,border:"none",background:"var(--orange)",color:"white",fontSize:12,fontWeight:600,cursor:"pointer",opacity:(!src.trim()||!trans.trim())?0.45:1}}>Add entry</button>
+      </div>
+    </Modal>
+  );
+}
+
+function ImportModal({onImport,onClose}){
+  const [text,setText]=useState("");const ref=useRef();
+  function handleFile(f){const r=new FileReader();r.onload=e=>setText(e.target.result);r.readAsText(f);}
+  return(
+    <Modal title="Import from plugin" onClose={onClose}>
+      <div style={{marginBottom:8,fontSize:11,color:"var(--t2)",lineHeight:1.6}}>Paste the JSON exported from the Pay10 Lingo plugin, or drop a .json file. Entries will be merged with existing memory.</div>
+      <div onDrop={e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f)handleFile(f);}} onDragOver={e=>e.preventDefault()}
+        style={{border:"1.5px dashed var(--b2)",borderRadius:10,padding:12,marginBottom:12,cursor:"pointer",background:"var(--bg)"}} onClick={()=>ref.current.click()}>
+        <input ref={ref} type="file" accept=".json" style={{display:"none"}} onChange={e=>{if(e.target.files[0])handleFile(e.target.files[0]);}}/>
+        <textarea value={text} onChange={e=>setText(e.target.value)} placeholder='{"ar_eg": {"Cancel": "إلغاء", ...}}'
+          style={{width:"100%",minHeight:120,border:"none",background:"transparent",fontSize:11,fontFamily:"monospace",outline:"none",resize:"vertical",color:"var(--text)"}}/>
+      </div>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+        <button onClick={onClose} style={{padding:"8px 16px",borderRadius:8,border:"1.5px solid var(--border)",background:"transparent",fontSize:12,fontWeight:500,cursor:"pointer",color:"var(--t2)"}}>Cancel</button>
+        <button onClick={()=>onImport(text)} disabled={!text.trim()} style={{padding:"8px 16px",borderRadius:8,border:"none",background:"var(--orange)",color:"white",fontSize:12,fontWeight:600,cursor:"pointer",opacity:!text.trim()?0.45:1}}>Import &amp; merge</button>
+      </div>
+    </Modal>
+  );
+}
+
+function AddLangModal({newLang,setNewLang,newDial,setNewDial,onAdd,onClose}){
+  const dials=(LANGS[newLang]||LANGS.ar).dialects;
+  useEffect(()=>{setNewDial(dials[0].code);},[newLang]);
+  return(
+    <Modal title="Add language pair" onClose={onClose}>
+      <div style={{marginBottom:12}}>
+        <label style={{fontSize:11,fontWeight:600,color:"var(--t2)",display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:".4px"}}>Language</label>
+        <select value={newLang} onChange={e=>setNewLang(e.target.value)} style={{width:"100%",padding:"9px 11px",border:"1.5px solid var(--border)",borderRadius:8,fontSize:12,outline:"none",background:"var(--white)"}}>
+          {Object.entries(LANGS).map(([c,l])=><option key={c} value={c}>{l.flag} {l.name}{l.native?` (${l.native})`:""}</option>)}
+        </select>
+      </div>
+      <div style={{marginBottom:18}}>
+        <label style={{fontSize:11,fontWeight:600,color:"var(--t2)",display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:".4px"}}>Dialect / Variant</label>
+        <select value={newDial} onChange={e=>setNewDial(e.target.value)} style={{width:"100%",padding:"9px 11px",border:"1.5px solid var(--border)",borderRadius:8,fontSize:12,outline:"none",background:"var(--white)"}}>
+          {dials.map(d=><option key={d.code} value={d.code}>{d.flag} {d.name}</option>)}
+        </select>
+      </div>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+        <button onClick={onClose} style={{padding:"8px 16px",borderRadius:8,border:"1.5px solid var(--border)",background:"transparent",fontSize:12,fontWeight:500,cursor:"pointer",color:"var(--t2)"}}>Cancel</button>
+        <button onClick={()=>onAdd(newLang,newDial)} style={{padding:"8px 16px",borderRadius:8,border:"none",background:"var(--orange)",color:"white",fontSize:12,fontWeight:600,cursor:"pointer"}}>Add pair</button>
+      </div>
+    </Modal>
+  );
+}
+
+function Modal({title,children,onClose}){
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.35)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100}} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div style={{background:"var(--white)",borderRadius:14,padding:"20px 22px",width:420,maxWidth:"90vw",boxShadow:"0 20px 60px rgba(0,0,0,.15)"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+          <div style={{fontSize:14,fontWeight:700}}>{title}</div>
+          <button onClick={onClose} style={{width:28,height:28,borderRadius:7,border:"1.5px solid var(--border)",background:"var(--white)",color:"var(--t3)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:16}}>×</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Toast({msg,kind}){
+  const colors={success:"var(--green)",error:"var(--red)",default:"var(--text)"};
+  return(
+    <div style={{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",background:colors[kind]||colors.default,color:"white",padding:"10px 20px",borderRadius:99,fontSize:12,fontWeight:500,boxShadow:"0 4px 16px rgba(0,0,0,.15)",zIndex:200,whiteSpace:"nowrap"}}>
+      {msg}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
