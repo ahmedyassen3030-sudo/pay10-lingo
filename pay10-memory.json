@@ -1,0 +1,31 @@
+{
+  "ar_eg": {
+    "Welcome": "أهلاً وسهلاً",
+    "Settings": "الإعدادات",
+    "Cancel": "إلغاء",
+    "Save": "حفظ",
+    "Edit": "تعديل",
+    "Delete": "حذف",
+    "Search": "بحث",
+    "Done": "تم",
+    "Continue": "متابعة",
+    "Sign in": "تسجيل الدخول",
+    "Sign out": "تسجيل الخروج",
+    "Home": "الرئيسية",
+    "Profile": "الملف الشخصي",
+    "Notifications": "الإشعارات",
+    "Loading...": "جاري التحميل...",
+    "Error": "خطأ",
+    "Success": "تم بنجاح",
+    "Next": "التالي",
+    "Back": "رجوع"
+  },
+  "ar_gulf": {
+    "Welcome": "هلا وغلا",
+    "Settings": "الإعدادات",
+    "Cancel": "كنسل",
+    "Save": "احفظ",
+    "Done": "خلاص",
+    "Search": "دور"
+  }
+}
