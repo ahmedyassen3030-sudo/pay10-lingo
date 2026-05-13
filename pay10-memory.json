@@ -1,8 +1,34 @@
 {
   "ar_eg": {
-    "g": "Ø¨"
+    "Welcome": "أهلاً وسهلاً",
+    "Settings": "الإعدادات",
+    "Cancel": "إلغاء",
+    "Save": "حفظ",
+    "Edit": "تعديل",
+    "Delete": "حذف",
+    "Search": "بحث",
+    "Done": "تم",
+    "Continue": "متابعة",
+    "Sign in": "تسجيل الدخول",
+    "Sign out": "تسجيل الخروج",
+    "Home": "الرئيسية",
+    "Profile": "الملف الشخصي",
+    "Notifications": "الإشعارات",
+    "Loading...": "جاري التحميل...",
+    "Error": "خطأ",
+    "Success": "تم بنجاح",
+    "Next": "التالي",
+    "Back": "رجوع",
+    "g": "ÃÂ¨"
   },
-  "ar_gulf": {},
+  "ar_gulf": {
+    "Welcome": "هلا وغلا",
+    "Settings": "الإعدادات",
+    "Cancel": "كنسل",
+    "Save": "احفظ",
+    "Done": "خلاص",
+    "Search": "دور"
+  },
   "fr_fr": {},
   "ar_msa": {}
 }
